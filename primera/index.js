@@ -18,6 +18,15 @@ app.get('/login', (req, res) => {
 })
 
 
+isAdmin = (req,res,next) => {
+    if(req.cookies && req.cookies.user) {
+        return next();
+    }
+    res.redirect("/login")
+}
+app.get('/login', (req, res) => {
+  res.render('login')
+})
 
 app.post('/login',(req,res) => {
     const { user,password } = req.body;
