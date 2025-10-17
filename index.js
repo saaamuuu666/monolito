@@ -26,7 +26,7 @@ function isAdmin(req, res, next) {
   if (req.cookies.user && req.cookies.role === 'admin') return next();
   return res.redirect('/');
 }
-
+// funcion user 
 function isUser(req, res, next) {
   if (req.cookies.user && req.cookies.role === 'user') return next();
   return res.redirect('/');
