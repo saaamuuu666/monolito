@@ -1,20 +1,14 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Document</title>
+  <title>Login</title>
 </head>
 <body>
-   <form action="/login" method="post">
-    <label for="user">User:</label>
-    <input type="text" id="user" name="user" required>
-    <br>
-    <label for="password">Password:</label>
-    <input type="password" id="password" name="password" required>
-    <br>
-    <button  value="Enviar">Login</button>
-</form>
-
+  <h1>Iniciar sesión</h1>
+  <form method="POST" action="/login">
+    <input type="text" name="user" placeholder="Usuario" required />
+    <input type="password" name="password" placeholder="Contraseña" required />
+    <button type="submit">Ingresar</button>
+  </form>
 </body>
 </html>
