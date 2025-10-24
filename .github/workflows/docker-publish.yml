@@ -1,20 +1,26 @@
 name: Docker
 
-# 🚀 Workflow para construir y publicar imágenes Docker en GitHub Container Registry
-# Funciona tanto en la rama main como en la rama dos_capas
+# This workflow uses actions that are not certified by GitHub.
+# They are provided by a third-party and are governed by
+# separate terms of service, privacy policy, and support
+# documentation.
 
 on:
   schedule:
-    - cron: '35 13 * * *'
+    - cron: '40 18 * * *'
   push:
-    branches: [ "main", "dos_capas" ]
+    branches: [ "main" ]
+    # Publish semver tags as releases.
     tags: [ 'v*.*.*' ]
   pull_request:
     branches: [ "main" ]
 
 env:
+  # Use docker.io for Docker Hub if empty
   REGISTRY: ghcr.io
+  # github.repository as <account>/<repo>
   IMAGE_NAME: ${{ github.repository }}
+
 
 jobs:
   build:
@@ -23,25 +29,31 @@ jobs:
     permissions:
       contents: read
       packages: write
+      # This is used to complete the identity challenge
+      # with sigstore/fulcio when running outside of PRs.
       id-token: write
 
     steps:
-      - name: 📥 Checkout del repositorio
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      # Instalación de cosign para firma de imágenes
-      - name: 🔐 Instalar cosign
+      # Install the cosign tool except on PR
+      # https://github.com/sigstore/cosign-installer
+      - name: Install cosign
         if: github.event_name != 'pull_request'
-        uses: sigstore/cosign-installer@59acb6260d9c0ba8f4a2f9d9b48431a222b68e20 # v3.5.0
+        uses: sigstore/cosign-installer@59acb6260d9c0ba8f4a2f9d9b48431a222b68e20 #v3.5.0
         with:
           cosign-release: 'v2.2.4'
 
-      # Configurar Buildx para compilación multi-plataforma
-      - name: 🧱 Configurar Docker Buildx
+      # Set up BuildKit Docker container builder to be able to build
+      # multi-platform images and export cache
+      # https://github.com/docker/setup-buildx-action
+      - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@f95db51fddba0c2d1ec667646a06c2ce06100226 # v3.0.0
 
-      # Login en el registry
-      - name: 🔑 Iniciar sesión en el registro ${{ env.REGISTRY }}
+      # Login against a Docker registry except on PR
+      # https://github.com/docker/login-action
+      - name: Log into registry ${{ env.REGISTRY }}
         if: github.event_name != 'pull_request'
         uses: docker/login-action@343f7c4344506bcbf9b4de18042ae17996df046d # v3.0.0
         with:
@@ -49,16 +61,18 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # Metadatos para imagen Node
-      - name: 🏗️ Extraer metadatos Docker para APP
+      # Extract metadata (tags, labels) for Docker
+      # https://github.com/docker/metadata-action
+      - name: Extract Docker metadata APP
         id: meta-app
         uses: docker/metadata-action@96383f45573cb7f253c731d3b3ab81c87ef81934 # v5.0.0
         with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-node
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}--app
 
-      # Construcción y subida de imagen Node
-      - name: 🚀 Build y Push de imagen Docker para APP
-        id: build-and-push-node
+      # Build and push Docker image with Buildx (don't push on PR)
+      # https://github.com/docker/build-push-action
+      - name: Build and push Docker image for APP
+        id: build-and-push-app
         uses: docker/build-push-action@0565240e2d4ab88bba5387d719585280857ece09 # v5.0.0
         with:
           context: ./node
@@ -67,16 +81,18 @@ jobs:
           labels: ${{ steps.meta-app.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-
-      # Metadatos para imagen PostgreSQL
-      - name: 🏗️ Extraer metadatos Docker para POSTGRES
+          
+      # Extract metadata (tags, labels) for Docker
+      # https://github.com/docker/metadata-action
+      - name: Extract Docker metadata for POSTGRES
         id: meta-postgres
         uses: docker/metadata-action@96383f45573cb7f253c731d3b3ab81c87ef81934 # v5.0.0
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-postgres
 
-      # Construcción y subida de imagen PostgreSQL
-      - name: 🐘 Build y Push de imagen Docker para POSTGRES
+      # Build and push Docker image with Buildx (don't push on PR)
+      # https://github.com/docker/build-push-action
+      - name: Build and push Docker image
         id: build-and-push-postgres
         uses: docker/build-push-action@0565240e2d4ab88bba5387d719585280857ece09 # v5.0.0
         with:
@@ -87,10 +103,17 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      # Firma de la imagen publicada
-      - name: 🧾 Firmar la imagen Docker publicada
+      # Sign the resulting Docker image digest except on PRs.
+      # This will only write to the public Rekor transparency log when the Docker
+      # repository is public to avoid leaking data.  If you would like to publish
+      # transparency data even for private images, pass --force to cosign below.
+      # https://github.com/sigstore/cosign
+      - name: Sign the published Docker image
         if: ${{ github.event_name != 'pull_request' }}
         env:
-          TAGS: ${{ steps.meta-app.outputs.tags }}
-          DIGEST: ${{ steps.build-and-push-node.outputs.digest }}
+          # https://docs.github.com/en/actions/security-guides/security-hardening-for-github-actions#using-an-intermediate-environment-variable
+          TAGS: ${{ steps.meta.outputs.tags }}
+          DIGEST: ${{ steps.build-and-push.outputs.digest }}
+        # This step uses the identity token to provision an ephemeral certificate
+        # against the sigstore community Fulcio instance.
         run: echo "${TAGS}" | xargs -I {} cosign sign --yes {}@${DIGEST}
