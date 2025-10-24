@@ -37,7 +37,7 @@ async function main() {
     ON CONFLICT (username) DO NOTHING`,
       ['user', await bcrypt.hash('userpass', 10), 'user'],
     );
-    await client.end();
+    client.end();
   } catch (err) {
     console.error('Error initializing database', err);
   }
