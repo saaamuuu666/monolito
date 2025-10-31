@@ -39,6 +39,10 @@ app.get('/home', isUser, (req, res) =>
 app.get('/admin', isAdmin, (req, res) =>
   res.render('admin', { user: req.cookies.user }),
 );
+app.get('/register', (req, res) =>
+  res.render('register'),
+);
+
 
 app.get('/logout', (req, res) => {
   res.clearCookie('user');
@@ -75,6 +79,38 @@ app.post('/login', async (req, res) => {
   } catch (err) {
     console.error('Login error:', err);
     return res.redirect('/');
+  }
+});
+app.post('/register', async (req, res) => {
+  const { user, password } = req.body; // en tu HTML el name es "user"
+
+  try {
+    // comprobar si ya existe
+    const exists = await pool.query(
+      'SELECT * FROM users WHERE username = $1',
+      [user]
+    );
+    if (exists.rows.length > 0) {
+      console.log('El usuario ya existe');
+      return res.send('El usuario ya existe. <a href="/register">Volver</a>');
+    }
+
+    // encriptar contraseña
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    // insertar usuario nuevo
+    await pool.query(
+      'INSERT INTO users (username, password, role) VALUES ($1, $2, $3)',
+      [user, hashedPassword, 'user']
+    );
+
+    console.log('Usuario registrado:', user);
+    res.send(
+      `Usuario ${user} registrado correctamente. <a href="/">Iniciar sesión</a>`
+    );
+  } catch (err) {
+    console.error('Error registrando usuario:', err);
+    res.send('Error al registrar usuario. <a href="/register">Volver</a>');
   }
 });
     app.listen(port, () => {
